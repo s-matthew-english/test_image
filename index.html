@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>hello</title>
+  <meta charset="utf-8">
+</head>
+<body>
+  <p>test</p> 
+
+
+<script>
+
+importScripts("https://unpkg.com/d3-delaunay@3.1.1/dist/d3-delaunay.min.js");
+
+onmessage = event => {
+  const {data: {data, width, height, n}} = event;
+
+  // Initialize the points using rejection sampling.
+  const points = new Float64Array(n * 2);
+  for (let i = 0; i < n; ++i) {
+    for (let j = 0; j < 30; ++j) {
+      const x = points[i * 2] = Math.floor(Math.random() * width);
+      const y = points[i * 2 + 1] = Math.floor(Math.random() * height);
+      if (Math.random() < data[y * width + x]) break;
+    }
+  }
+
+  for (let k = 0; k < 80; ++k) {
+    const delaunay = new d3.Delaunay(points);
+    const voronoi = delaunay.voronoi([0, 0, width, height]);
+
+    // Compute the weighted centroid for each Voronoi cell.
+    const c = new Float64Array(n * 2);
+    const s = new Float64Array(n);
+    for (let y = 0, i = 0; y < height; ++y) {
+      for (let x = 0; x < width; ++x) {
+        const w = data[y * width + x];
+        i = voronoi.find(x + 0.5, y + 0.5, i);
+        s[i] += w;
+        c[i * 2] += w * (x + 0.5);
+        c[i * 2 + 1] += w * (y + 0.5);
+      }
+    }
+
+    // Relax the diagram by moving points to the weighted centroid.
+    // Wiggle the points a little bit so they donâ€™t get stuck.
+    const w = Math.pow(k + 1, -0.8) * 10;
+    for (let i = 0; i < n; ++i) {
+      const x0 = points[i * 2], y0 = points[i * 2 + 1];
+      const x1 = s[i] ? c[i * 2] / s[i] : x0, y1 = s[i] ? c[i * 2 + 1] / s[i] : y0;
+      points[i * 2] = x0 + (x1 - x0) * 1.8 + (Math.random() - 0.5) * w;
+      points[i * 2 + 1] = y0 + (y1 - y0) * 1.8 + (Math.random() - 0.5) * w;
+    }
+
+    postMessage(points);
+  }
+
+  close();
+};
+
+data = new Promise((resolve, reject) => {
+  const image = new Image;
+  image.crossOrigin = "anonymous";
+  image.onerror = reject;
+  image.onload = () => {
+    const height = Math.round(width * image.height / image.width);
+    const context = DOM.context2d(width, height, 1);
+    context.drawImage(image, 0, 0, image.width, image.height, 0, 0, width, height);
+    const {data: rgba} = context.getImageData(0, 0, width, height);
+    const data = new Float64Array(width * height);
+    for (let i = 0, n = rgba.length / 4; i < n; ++i) data[i] = Math.max(0, 1 - rgba[i * 4] / 254);
+    data.width = width;
+    data.height = height;
+    resolve(data);
+  };
+  image.src = "https://i.imgur.com/Q3PktpT.jpg";
+})
+
+n = Math.round(width * height / 40)
+
+height = data.height
+
+</script>
+
+
+</body>
+</html>
